@@ -2,14 +2,18 @@ package simple
 
 import (
 	"container/list"
+	"errors"
+	"reflect"
 )
 
 // LRU is a basic implmentation of a least
 // recently used cache using a map
 type LRU struct {
-	capaticty int
-	used      *list.List
-	items     map[interface{}]*list.Element
+	capaticty      int
+	convenienceCap uintptr
+	size           uintptr
+	used           *list.List
+	items          map[interface{}]*list.Element
 }
 
 // NewLRU returns a new LRU capable of holding items
@@ -17,9 +21,11 @@ type LRU struct {
 // TODO: Consider setting a max
 func NewLRU(capacity int) *LRU {
 	return &LRU{
-		capaticty: capacity,
-		used:      list.New(),
-		items:     make(map[interface{}]*list.Element, capacity),
+		capaticty:      capacity,
+		convenienceCap: uintptr(capacity),
+		size:           uintptr(0),
+		used:           list.New(),
+		items:          map[interface{}]*list.Element{},
 	}
 }
 
@@ -33,20 +39,38 @@ type entry struct {
 // than the capacity, then the last used element is removed
 func (l *LRU) Set(key interface{}, value interface{}) error {
 
-	if l.used.Len() >= l.capaticty {
-		last := l.used.Back()
-		l.used.Remove(last)
-		entry := last.Value.(entry)
-		delete(l.items, entry.key)
+	entrySize := reflect.TypeOf(value).Size()
+	if entrySize > l.convenienceCap {
+		return errors.New("Cannot store item that is larger than the cache capacity")
+	}
+
+	newSize := l.size + entrySize
+	if newSize > l.convenienceCap {
+		l.removeElement()
 	}
 
 	_, ok := l.items[key]
 	if !ok {
 		entry := entry{key: key, value: value}
 		listEntry := l.used.PushFront(entry)
+		l.size += newSize
 		l.items[key] = listEntry
 	}
+
 	return nil
+
+}
+
+func (l *LRU) removeElement() {
+
+	lastElement := l.used.Back()
+	l.used.Remove(lastElement)
+
+	entry := lastElement.Value.(entry)
+	delete(l.items, entry.key)
+
+	lastElementSize := reflect.TypeOf(lastElement).Size()
+	l.size -= lastElementSize
 
 }
 

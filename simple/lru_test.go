@@ -7,7 +7,7 @@ import (
 
 func TestLRU_Set(t *testing.T) {
 
-	l := NewLRU(1)
+	l := NewLRU(100)
 	err := l.Set("Test", "test string")
 	if err != nil {
 		t.Errorf("expected no error when calling set, got %s", err)
@@ -17,7 +17,10 @@ func TestLRU_Set(t *testing.T) {
 
 func TestLRU_Get(t *testing.T) {
 
-	l := NewLRU(2)
+	// Each entry string is 16 bytes in size
+	// We only want the cache to be large enough
+	// for 2 items
+	l := NewLRU(42)
 
 	err := l.Set("first", "first value")
 	if err != nil {
@@ -53,6 +56,17 @@ func TestLRU_Get(t *testing.T) {
 	}
 	if listEntry.value != "second value" {
 		t.Errorf("expected 'second value' got: %s", listEntry.value)
+	}
+
+}
+
+func TestLRU_Set_TooLarge(t *testing.T) {
+
+	l := NewLRU(10)
+
+	err := l.Set("Big", "This is too big to store!")
+	if err == nil {
+		t.Error("expected error when setting an entry to large for the cache")
 	}
 
 }
