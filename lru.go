@@ -3,6 +3,7 @@ package lru
 import (
 	"container/list"
 	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -32,6 +33,7 @@ func NewLRU(capacity int) *LRU {
 type entry struct {
 	key   interface{}
 	value interface{}
+	size  uintptr
 }
 
 // Set stores this value in the interface with the given key.
@@ -46,12 +48,16 @@ func (l *LRU) Set(key interface{}, value interface{}) error {
 
 	newSize := l.size + entrySize
 	if newSize > l.convenienceCap {
-		l.removeElement()
+		l.removeLastElement()
 	}
 
 	_, ok := l.items[key]
 	if !ok {
-		entry := entry{key: key, value: value}
+		entry := entry{
+			key:   key,
+			value: value,
+			size:  entrySize,
+		}
 		listEntry := l.used.PushFront(entry)
 		l.size += newSize
 		l.items[key] = listEntry
@@ -61,16 +67,14 @@ func (l *LRU) Set(key interface{}, value interface{}) error {
 
 }
 
-func (l *LRU) removeElement() {
+func (l *LRU) removeLastElement() {
 
 	lastElement := l.used.Back()
 	l.used.Remove(lastElement)
 
 	entry := lastElement.Value.(entry)
 	delete(l.items, entry.key)
-
-	lastElementSize := reflect.TypeOf(lastElement).Size()
-	l.size -= lastElementSize
+	l.size -= entry.size
 
 }
 
@@ -79,11 +83,64 @@ func (l *LRU) removeElement() {
 // element in the cache and is less likely to be removed
 func (l *LRU) Get(key interface{}) (interface{}, bool) {
 
+	entry, ok := l.get(key)
+	if ok {
+		l.used.MoveToFront(entry)
+	}
+	return entry, ok
+
+}
+
+// Peek returns the element with this key, if it exists.
+// Unlike Get, the returned element does not become the
+// most recently used element
+func (l *LRU) Peek(key interface{}) (interface{}, bool) {
+	return l.get(key)
+}
+
+func (l *LRU) get(key interface{}) (*list.Element, bool) {
+
 	entry, ok := l.items[key]
 	if !ok {
 		return nil, ok
 	}
-	l.used.MoveToFront(entry)
 	return entry, ok
 
+}
+
+// Del removes the entry with the given key. If they entry
+// does not exist, an error is returned
+func (l *LRU) Del(key interface{}) error {
+
+	entry, ok := l.get(key)
+	if !ok {
+		return fmt.Errorf("cannot delete non-existent entry: %v", key)
+	}
+	l.removeEntry(entry)
+	return nil
+
+}
+
+func (l *LRU) removeEntry(e *list.Element) {
+	l.used.Remove(e)
+	l.size -= e.Value.(entry).size
+}
+
+// Size returns the current size of the cache as an integer
+func (l *LRU) Size() int {
+	return int(l.size)
+}
+
+// Has returns true if the give key contains an entry in
+// the cache
+func (l *LRU) Has(key interface{}) bool {
+	_, ok := l.items[key]
+	return ok
+}
+
+// Reset clears the cache, throwing away all elements
+func (l *LRU) Reset() {
+	l.used.Init()
+	l.items = map[interface{}]*list.Element{}
+	l.size = uintptr(0)
 }
