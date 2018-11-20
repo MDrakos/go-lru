@@ -3,4 +3,4 @@
 Simple LRU cache implementation
 
 ## API
-Follows conventions [here](https://www.npmjs.com/package/lru-cache)
+Follows _some_ conventions from [here](https://www.npmjs.com/package/lru-cache)
