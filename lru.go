@@ -46,10 +46,7 @@ func (l *LRU) Set(key interface{}, value interface{}) error {
 		return errors.New("Cannot store item that is larger than the cache capacity")
 	}
 
-	newSize := l.size + entrySize
-	if newSize > l.convenienceCap {
-		l.removeLastElement()
-	}
+	newSize := l.setSize(entrySize)
 
 	_, ok := l.items[key]
 	if !ok {
@@ -59,11 +56,23 @@ func (l *LRU) Set(key interface{}, value interface{}) error {
 			size:  entrySize,
 		}
 		listEntry := l.used.PushFront(entry)
-		l.size += newSize
+		l.size = newSize
 		l.items[key] = listEntry
 	}
 
 	return nil
+
+}
+
+func (l *LRU) setSize(entrySize uintptr) uintptr {
+
+	newSize := l.size + entrySize
+	if newSize <= l.convenienceCap {
+		return newSize
+	}
+
+	l.removeLastElement()
+	return l.setSize(entrySize)
 
 }
 
